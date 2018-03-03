@@ -1,0 +1,206 @@
+---
+title: "IBM_HR_ANALYTICS"
+author: "Aravind"
+date: "March 1, 2018"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+ibm_data <- read.csv("IBM_HR_Attrition.csv")
+str(ibm_data)
+```
+
+```{r}
+head(ibm_data)
+```
+
+
+#Check for missing values
+```{r}
+colSums(is.na(ibm_data))
+```
+
+```{r}
+table(ibm_data$Attrition)
+```
+
+# Visualization
+```{r, warning=FALSE}
+require(ggplot2)
+ggplot(ibm_data, aes(x=Department, fill=Attrition))+geom_bar() + theme_bw()
+```
+
+HR department has the least count.
+R&D department has more Attrition = No(High proportion of no)
+
+Lets see Gender and Attrition
+```{r}
+ggplot(ibm_data, aes(x=Gender, fill=Attrition))+geom_bar() + theme_bw()
+```
+
+Gender, Attrition from each department
+```{r}
+ggplot(ibm_data, aes(x=Gender, fill=Attrition))+geom_bar() + theme_bw() + facet_wrap(~Department)
+```
+
+```{r}
+ggplot(ibm_data, aes(x=OverTime, fill=Gender))+geom_bar() + theme_bw()
+```
+
+Females do work overtime. There is quite a lot. 
+
+Department wise.
+```{r}
+ggplot(ibm_data, aes(x=OverTime, fill=Gender))+geom_bar() + theme_bw() + facet_wrap(~Department)
+```
+
+# Attrition = Yes - 1, No - 0
+Use dummy_cols{fastDummies} for label encoding.
+I have done manually.
+```{r}
+ibm_data$Attrition = as.integer(ibm_data$Attrition)
+head(ibm_data)
+```
+
+```{r}
+ibm_data$Attrition[ibm_data$Attrition == 1] <- 0
+ibm_data$Attrition[ibm_data$Attrition == 2] <- 1
+```
+
+
+```{r}
+ibm_data$Attrition = as.factor(ibm_data$Attrition)
+head(ibm_data)
+```
+
+# Turning numeric variables into factors
+```{r}
+ibm_data$Education <- as.factor(ibm_data$Education)
+ibm_data$EnvironmentSatisfaction <- as.factor(ibm_data$EnvironmentSatisfaction)
+ibm_data$JobInvolvement <- as.factor(ibm_data$JobInvolvement)
+ibm_data$JobSatisfaction <- as.factor(ibm_data$JobSatisfaction)
+ibm_data$PerformanceRating <- as.factor(ibm_data$PerformanceRating)
+ibm_data$RelationshipSatisfaction <- as.factor(ibm_data$RelationshipSatisfaction)
+ibm_data$WorkLifeBalance <- as.factor(ibm_data$WorkLifeBalance)
+str(ibm_data)
+```
+
+```{r}
+head(ibm_data)
+```
+
+# Gender
+```{r}
+ibm_data$Gender <- as.integer(ibm_data$Gender)
+ibm_data$MaritalStatus <- as.integer(ibm_data$MaritalStatus)
+ibm_data$OverTime <- as.integer(ibm_data$OverTime)
+head(ibm_data)
+```
+
+```{r}
+ibm_data$Gender <- as.factor(ibm_data$Gender)
+ibm_data$MaritalStatus <- as.factor(ibm_data$MaritalStatus)
+ibm_data$OverTime <- as.factor(ibm_data$OverTime)
+head(ibm_data)
+```
+
+
+# Train Test Split
+```{r}
+require(caret)
+set.seed(1)
+ind = createDataPartition(ibm_data$Attrition, p=0.80, list = F)
+train = ibm_data[ind,]
+test = ibm_data[-ind,]
+```
+
+# Logistic Model
+```{r}
+model <- glm(Attrition ~DailyRate+EnvironmentSatisfaction+JobInvolvement+RelationshipSatisfaction , data = train, family = "binomial")
+summary(model)
+```
+
+# Prediction
+```{r}
+prediction <- predict(model, newdata = test, type = 'response')
+head(prediction)
+
+```
+
+```{r}
+prediction <- ifelse(prediction > 0.5,1,0)
+head(prediction)
+```
+
+```{r}
+tab = table(predicted = prediction, original = test$Attrition)
+tab
+```
+
+
+```{r}
+print(sum(diag(tab))/sum(tab))
+```
+
+# Lets try random forest
+
+```{r, warning=FALSE}
+require(randomForest)
+model_rf <- randomForest(Attrition ~DailyRate+EnvironmentSatisfaction+JobInvolvement+
+                           RelationshipSatisfaction+Education+MonthlyIncome+MonthlyRate+
+                           PercentSalaryHike+TotalWorkingYears+YearsAtCompany+
+                           YearsInCurrentRole+YearsWithCurrManager+NumCompaniesWorked+
+                           JobRole+HourlyRate,
+                           data=train)
+varImpPlot(model_rf)
+```
+
+# Prediction
+```{r}
+prediction <- predict(model_rf, newdata = test)
+head(prediction)
+```
+
+# Accuracy
+```{r}
+library(caret)
+pl1 <- data.frame(original = test, predicted = prediction)
+confusionMatrix(table(pl1$original.Attrition,pl1$predicted))
+
+```
+
+
+
+Drop some variables and see how accuracy changes.
+
+```{r, warning=FALSE}
+require(randomForest)
+model_rf <- randomForest(Attrition ~DailyRate+
+                           MonthlyIncome+MonthlyRate+PercentSalaryHike+TotalWorkingYears+
+                           YearsAtCompany+
+                           JobRole+HourlyRate,
+                         data=train)
+varImpPlot(model_rf)
+```
+
+# Prediction
+```{r}
+prediction <- predict(model_rf, newdata = test)
+head(prediction)
+```
+
+# accuracy
+```{r}
+library(caret)
+pl1 <- data.frame(original = test, predicted = prediction)
+confusionMatrix(table(pl1$original.Attrition,pl1$predicted))
+
+```
+
+Therefore, not much difference in accuracy.
